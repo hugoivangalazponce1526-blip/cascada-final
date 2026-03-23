@@ -178,7 +178,7 @@ input[type=number]{text-align:right}
 </div>
 
 <!-- ==================== NUEVA FICHA ==================== -->
-<div class="view on" id="view-nueva">
+<div class="view on" id="view-nueva" style="display:block">
 
   <!-- AVISO ficha existente -->
   <div class="aviso" id="aviso">
@@ -326,7 +326,7 @@ input[type=number]{text-align:right}
 </div><!-- /view-nueva -->
 
 <!-- ==================== HISTORIAL ==================== -->
-<div class="view" id="view-historial">
+<div class="view" id="view-historial" style="display:none">
   <div class="card">
     <div class="ctitle"><div class="ico">&#128197;</div>Historial de fichas</div>
     <div style="display:flex;gap:7px;margin-bottom:11px;flex-wrap:wrap">
@@ -340,7 +340,7 @@ input[type=number]{text-align:right}
 </div>
 
 <!-- ==================== RESUMEN ==================== -->
-<div class="view" id="view-resumen">
+<div class="view" id="view-resumen" style="display:none">
   <div class="card">
     <div class="ctitle"><div class="ico">&#128202;</div>Estadísticas</div>
     <div class="sgrid">
@@ -421,11 +421,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function showTab(v, btn) {
-  document.querySelectorAll('.view').forEach(el => { el.classList.remove('on'); el.style.display = 'none'; });
+  // Hide all views
+  ['nueva','historial','resumen'].forEach(name => {
+    const el = document.getElementById('view-' + name);
+    if (el) { el.style.display = 'none'; el.classList.remove('on'); }
+  });
+  // Remove active from all tabs
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('on'));
-  const el = document.getElementById('view-' + v);
-  el.classList.add('on');
-  el.style.display = 'block';
+  // Show selected view
+  const target = document.getElementById('view-' + v);
+  if (target) { target.style.display = 'block'; target.classList.add('on'); }
   if (btn) btn.classList.add('on');
   if (v === 'historial') { renderHist(); fillMes(); }
   if (v === 'resumen') renderRes();
