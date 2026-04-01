@@ -148,6 +148,18 @@ input[type=number]{text-align:right}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(120px);background:#1A7A4A;color:#fff;padding:10px 20px;border-radius:40px;font-weight:600;font-size:.84rem;z-index:9999;transition:.25s ease;white-space:nowrap}
 .toast.on{transform:translateX(-50%) translateY(0)}
 .toast.err{background:#C00000}
+.wpay{background:#fff;border:1.5px solid #DEE2E6;border-radius:9px;padding:11px 13px;margin-bottom:8px}
+.wpay-name{font-weight:600;color:#0F4D2E;font-size:.88rem;margin-bottom:7px}
+.wpay-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wpay-lbl{font-size:.66rem;color:#555;text-transform:uppercase;font-weight:700;margin-bottom:3px}
+.tag-ad{display:inline-block;background:#FFE0E0;color:#C00000;border-radius:5px;padding:2px 7px;font-size:.68rem;font-weight:700;margin-left:4px}
+.wtbl{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:10px}
+.wtbl th{background:#0F4D2E;color:#fff;padding:7px 9px;text-align:left;font-weight:600;font-size:.72rem}
+.wtbl td{padding:7px 9px;border-bottom:.5px solid #DEE2E6;vertical-align:middle}
+.wtbl tr:last-child td{border-bottom:none}
+.wtbl tr:nth-child(even) td{background:#F8FDF9}
+.wpos{color:#1A7A4A;font-weight:700}
+.wneg{color:#C00000;font-weight:700}
 @media(max-width:560px){.r2,.r3{grid-template-columns:1fr}.tgrid{grid-template-columns:1fr}.sgrid{grid-template-columns:1fr 1fr}.hdr h1{font-size:1.4rem}.hdr-row{flex-direction:column;gap:8px}.dgrid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -321,6 +333,12 @@ input[type=number]{text-align:right}
     <textarea id="f-notas" rows="3" placeholder="Observaciones, incidencias..."></textarea>
   </div>
 
+  <div class="card" id="card-pagos">
+    <div class="ctitle"><div class="ico">&#128176;</div>Pago a trabajadores del día</div>
+    <p style="font-size:.75rem;color:#555;margin-bottom:11px">Registra el pago y adelantos de cada trabajador. Se acumula para el resumen mensual.</p>
+    <div id="pagos-cont"></div>
+    <button class="bs" style="width:100%;margin-top:7px;font-size:.78rem" onclick="actualizarPagos()">&#8635; Actualizar lista desde el equipo</button>
+  </div>
   <button class="bp" id="btnguardar" onclick="guardar()">&#128190; Guardar / Actualizar ficha del día</button>
 
 </div><!-- /view-nueva -->
@@ -355,6 +373,10 @@ input[type=number]{text-align:right}
   <div class="card">
     <div class="ctitle"><div class="ico">&#128197;</div>Por mes</div>
     <div id="rmeses"></div>
+    <div class="card">
+    <div class="ctitle"><div class="ico">&#128101;</div>Resumen por trabajador</div>
+    <p style="font-size:.75rem;color:#555;margin-bottom:11px">Total ganado, adelantos y saldo a pagar. Filtra por mes actual o ver todo el historial.</p>
+    <div id="res-workers"><div style="text-align:center;padding:20px;color:#aaa;font-size:.82rem">Cargando...</div></div>
   </div>
 </div>
 
@@ -399,7 +421,7 @@ const MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','
 const DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 const DIAC = ['dom','lun','mar','mié','jue','vie','sáb'];
 
-let db, fichas = [], curId = null, fotos = [], gcM = 0, gcT = 0;
+let db, fichas = [], curId = null, fotos = [], gcM = 0, gcT = 0, pagosData = {};
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -450,7 +472,7 @@ function showTab(v, btn) {
   if (target) { target.style.display = 'block'; target.classList.add('on'); }
   if (btn) btn.classList.add('on');
   if (v === 'historial') { renderHist(); fillMes(); }
-  if (v === 'resumen') renderRes();
+  if (v === 'resumen') { renderRes(); renderResWorkers(); }
 }
 
 function showTurno(t, btn) {
@@ -504,6 +526,7 @@ async function guardar() {
     tarde:  { trabajadores:tT, gastos:gT, totalGastos:tgT, caja:tCaja, ventaEfectivo:tEf, ventaTransferencia:tTr, ventaTarjeta:tTj, totalVentas:tV, totalEfectivo:tCaja+tEf, totalEntregar:tEnt, propinasTotal:tPt, propinasDivide:tPd, propinasPP:tPd>0?Math.floor(tPt/tPd):0 },
     totalVentas: mV+tV, totalGastos: tgM+tgT, totalPropinas: mPt+tPt, totalEntregar: mEnt+tEnt,
     notas: document.getElementById('f-notas').value.trim(),
+    pagos: getPagosArr(),
     fotos: fotos.length ? [...fotos] : null,
     foto: fotos[0] || null,
     ts: new Date().toISOString()
@@ -543,6 +566,7 @@ function makeTrab(t) {
     g.innerHTML += '<div class="ti"><div class="tnum">' + (i+1) + '</div><input type="text" placeholder="Nombre ' + (i+1) + '" value="' + (vs[i]||'') + '"/></div>';
   document.getElementById(t + '-pd').value = nt;
   calcP(t);
+  setTimeout(actualizarPagos, 50);
 }
 
 function getTrabs(t) {
@@ -680,6 +704,9 @@ function cargarEnForm(f) {
   if (f.notas) document.getElementById('f-notas').value = f.notas;
   if (f.fotos?.length) { fotos = [...f.fotos]; } else if (f.foto) { fotos = [f.foto]; } else { fotos = []; }
   renderFotos(); calc('m'); calc('t'); calcP('m'); calcP('t');
+  pagosData = {};
+  if (f.pagos) f.pagos.forEach(p => { if (p.nombre) { const key=p.nombre.replace(/[^a-zA-Z0-9]/g,'_'); pagosData[key]={nombre:p.nombre,pago:p.pago||0,adelanto:p.adelanto||0}; } });
+  setTimeout(actualizarPagos, 80);
 }
 
 function limpiar() {
@@ -690,6 +717,7 @@ function limpiar() {
   gcM = 0; gcT = 0;
   for (let i = 0; i < 4; i++) { addGasto('m'); addGasto('t'); }
   fotos = []; renderFotos(); updRes();
+  pagosData = {}; renderPagos([]);
 }
 
 // ── HISTORIAL ──────────────────────────────────────────────────────────────────
@@ -787,6 +815,15 @@ function verDetalle(id) {
     '<div style="display:flex;justify-content:space-between;padding:7px 0 0;border-top:1px solid rgba(255,255,255,.2);margin-top:4px"><span style="color:#C9A84C;font-weight:600">Total entregado</span><span style="color:#C9A84C;font-weight:700;font-size:1rem;font-family:&apos;Playfair Display&apos;,serif">' + fm(f.totalEntregar||0) + '</span></div>' +
   '</div>';
 
+  const pagosDay = (f.pagos||[]).filter(p=>p.pago>0||p.adelanto>0);
+  if (pagosDay.length) {
+    html += '<div style="margin-top:10px;background:#E8F5EE;border-radius:8px;padding:11px">' +
+      '<div style="font-size:.72rem;font-weight:700;color:#0F4D2E;text-transform:uppercase;margin-bottom:7px">Pagos del día</div>' +
+      pagosDay.map(p=>'<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:.5px solid rgba(0,0,0,.06);font-size:.84rem">' +
+        '<span style="font-weight:600;color:#0F4D2E">'+p.nombre+'</span>' +
+        '<span>'+fm(p.pago)+(p.adelanto>0?' <span class="tag-ad">Adelanto: '+fm(p.adelanto)+'</span>':'')+' </span>' +
+      '</div>').join('') + '</div>';
+  }
   if (f.notas) html += '<div style="margin-top:10px;background:#F8F9FA;border-radius:7px;padding:10px;font-size:.84rem;color:#555"><strong>Notas:</strong> ' + f.notas + '</div>';
 
   const imgs = f.fotos || (f.foto ? [f.foto] : []);
@@ -825,6 +862,7 @@ function renderRes() {
       '<div style="font-size:.7rem;color:#555;margin-top:2px">Gastos: ' + fm(data.g) + ' · Diferencia: ' + fm(data.v-data.g) + '</div>' +
     '</div>';
   }).join('');
+  renderResWorkers();
 }
 
 // ── IMPRIMIR ───────────────────────────────────────────────────────────────────
@@ -860,6 +898,7 @@ function imprimir() {
       '<div class="ptr"><span>Total gastos</span><span>' + fm(f.totalGastos||0) + '</span></div>' +
       '<div class="ptr big"><span>TOTAL ENTREGADO</span><span>' + fm(f.totalEntregar||0) + '</span></div>' +
     '</div>' +
+    (f.pagos?.filter(p=>p.pago>0||p.adelanto>0).length?'<div style="margin-top:8px"><div style="font-size:.73rem;font-weight:700;color:#0F4D2E;margin-bottom:4px">PAGOS</div>'+f.pagos.filter(p=>p.pago>0||p.adelanto>0).map(p=>'<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:3px 0;border-bottom:.5px solid #eee"><span>'+p.nombre+'</span><span>'+fm(p.pago)+(p.adelanto>0?' (Adelanto: '+fm(p.adelanto)+')':'')+' </span></div>').join('')+'</div>':'') +
     (f.notas ? '<div style="margin-top:10px;background:#f9f9f9;border-radius:6px;padding:9px;font-size:.8rem"><strong>Notas:</strong> ' + f.notas + '</div>' : '') +
     (imgs.length ? '<div style="margin-top:10px">' + imgs.map(s => '<img class="pfoto" src="'+s+'"/>').join('') + '</div>' : '') +
     '<div class="pfirma"><div class="pfl">Encargado / Firma</div><div class="pfl">Revisado por</div></div>';
@@ -867,6 +906,98 @@ function imprimir() {
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
+
+// ── PAGOS TRABAJADORES ────────────────────────────────────────────────────────
+function getNombres() {
+  return [...new Set([
+    ...Array.from(document.querySelectorAll('#tg-m input')).map(i=>i.value.trim()),
+    ...Array.from(document.querySelectorAll('#tg-t input')).map(i=>i.value.trim())
+  ])].filter(Boolean);
+}
+
+function actualizarPagos() {
+  renderPagos(getNombres());
+}
+
+function renderPagos(nombres) {
+  const c = document.getElementById('pagos-cont');
+  if (!c) return;
+  if (!nombres.length) {
+    c.innerHTML = '<p style="font-size:.8rem;color:#aaa;text-align:center;padding:8px">Ingresa los nombres del equipo arriba primero</p>';
+    return;
+  }
+  c.innerHTML = nombres.map(nombre => {
+    const key = nombre.replace(/[^a-zA-Z0-9]/g,'_');
+    const prev = pagosData[key] || { pago:0, adelanto:0 };
+    return '<div class="wpay">' +
+      '<div class="wpay-name">' + nombre + '</div>' +
+      '<div class="wpay-row">' +
+        '<div><div class="wpay-lbl">Pago del día ($)</div>' +
+        '<div class="mi" style="width:140px"><input type="number" id="pg-' + key + '" value="' + prev.pago + '" style="text-align:right;padding-left:20px" oninput="savePago(\'' + key + '\',\'' + nombre + '\')"/></div></div>' +
+        '<div><div class="wpay-lbl">Adelanto ($)</div>' +
+        '<div class="mi" style="width:140px"><input type="number" id="ad-' + key + '" value="' + prev.adelanto + '" style="text-align:right;padding-left:20px;border-color:' + (prev.adelanto>0?'#C9A84C':'#DEE2E6') + '" oninput="savePago(\'' + key + '\',\'' + nombre + '\')"/></div></div>' +
+      '</div></div>';
+  }).join('');
+}
+
+function savePago(key, nombre) {
+  const pg = parseFloat(document.getElementById('pg-'+key)?.value)||0;
+  const ad = parseFloat(document.getElementById('ad-'+key)?.value)||0;
+  pagosData[key] = { nombre, pago:pg, adelanto:ad };
+}
+
+function getPagosArr() {
+  return Object.values(pagosData).filter(p=>p.nombre);
+}
+
+function renderResWorkers() {
+  const c = document.getElementById('res-workers');
+  if (!c) return;
+  if (!fichas.length) { c.innerHTML = '<p style="text-align:center;color:#aaa;font-size:.82rem;padding:16px">Sin datos aún</p>'; return; }
+
+  const calcWorkers = (lista) => {
+    const w = {};
+    lista.forEach(f => {
+      (f.pagos||[]).forEach(p => {
+        if (!p.nombre) return;
+        if (!w[p.nombre]) w[p.nombre] = {total:0, adelantos:0, dias:0};
+        w[p.nombre].total += p.pago||0;
+        w[p.nombre].adelantos += p.adelanto||0;
+        if ((p.pago||0)>0) w[p.nombre].dias++;
+      });
+    });
+    return w;
+  };
+
+  const makeTable = (workers, titulo) => {
+    if (!Object.keys(workers).length) return '';
+    let h = '<div style="font-size:.78rem;font-weight:700;color:#0F4D2E;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">' + titulo + '</div>';
+    h += '<table class="wtbl"><thead><tr><th>Trabajador</th><th>Días</th><th>Total ganado</th><th>Adelantos</th><th>Saldo a pagar</th></tr></thead><tbody>';
+    let totG=0, totA=0;
+    Object.entries(workers).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([nombre,d]) => {
+      const saldo = d.total - d.adelantos;
+      totG += d.total; totA += d.adelantos;
+      h += '<tr><td style="font-weight:600;color:#0F4D2E">' + nombre + '</td>' +
+        '<td style="color:#777">' + d.dias + '</td>' +
+        '<td>' + fm(d.total) + '</td>' +
+        '<td>' + (d.adelantos>0?'<span class="tag-ad">'+fm(d.adelantos)+'</span>':'<span style="color:#ccc">-</span>') + '</td>' +
+        '<td class="' + (saldo>=0?'wpos':'wneg') + '">' + fm(saldo) + '</td></tr>';
+    });
+    h += '<tr style="background:#E8F5EE"><td style="font-weight:700">TOTAL</td><td></td><td style="font-weight:700">' + fm(totG) + '</td><td>' + (totA>0?'<span class="tag-ad">'+fm(totA)+'</span>':'-') + '</td><td class="wpos" style="font-size:.9rem">' + fm(totG-totA) + '</td></tr>';
+    h += '</tbody></table>';
+    return h;
+  };
+
+  const mesActual = new Date().toISOString().substring(0,7);
+  const fichasMes = fichas.filter(f=>f.fecha&&f.fecha.startsWith(mesActual));
+  const wMes = calcWorkers(fichasMes);
+  const wTodo = calcWorkers(fichas);
+
+  c.innerHTML = makeTable(wMes, 'Este mes — ' + MES[new Date().getMonth()] + ' ' + new Date().getFullYear()) +
+    '<div style="margin-top:16px"></div>' +
+    makeTable(wTodo, 'Historial completo');
+}
+
 function n(id) { return parseFloat(document.getElementById(id)?.value) || 0; }
 function fm(v) { return '$' + Math.round(v||0).toLocaleString('es-CL'); }
 function setSS(s, msg) {
