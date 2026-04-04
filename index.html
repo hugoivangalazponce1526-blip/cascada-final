@@ -902,7 +902,32 @@ function imprimir() {
     (f.notas ? '<div style="margin-top:10px;background:#f9f9f9;border-radius:6px;padding:9px;font-size:.8rem"><strong>Notas:</strong> ' + f.notas + '</div>' : '') +
     (imgs.length ? '<div style="margin-top:10px">' + imgs.map(s => '<img class="pfoto" src="'+s+'"/>').join('') + '</div>' : '') +
     '<div class="pfirma"><div class="pfl">Encargado / Firma</div><div class="pfl">Revisado por</div></div>';
-  window.print();
+  // Open in new window for reliable printing
+  const printWin = window.open('', '_blank');
+  printWin.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cascada Restobar - Ficha ' + f.fecha + '</title><style>' +
+    'body{font-family:Arial,sans-serif;max-width:700px;margin:20px auto;font-size:13px;color:#1A1A1A}' +
+    '.ph{text-align:center;margin-bottom:18px;border-bottom:2px solid #1A7A4A;padding-bottom:12px}' +
+    '.ph h1{font-size:1.4rem;color:#1A7A4A;margin-bottom:3px}' +
+    '.pc{border:1px solid #ccc;border-radius:7px;padding:14px;margin-bottom:10px;break-inside:avoid}' +
+    '.stitle{font-size:.82rem;font-weight:700;color:#0F4D2E;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}' +
+    '.pr{display:flex;justify-content:space-between;padding:4px 7px;border-bottom:.5px solid #eee;font-size:.82rem}' +
+    '.pr:last-child{border-bottom:none}' +
+    '.pr .pv{font-weight:700}' +
+    '.pr.hl .pv{color:#1A7A4A}' +
+    '.pr.en .pl{color:#8B5E00;font-weight:600}' +
+    '.pt{background:#0F4D2E;color:#fff;border-radius:7px;padding:12px 14px;margin-top:8px}' +
+    '.ptr{display:flex;justify-content:space-between;padding:3px 0;font-size:.84rem}' +
+    '.ptr.big{font-size:.95rem;font-weight:700;color:#C9A84C;border-top:1px solid rgba(255,255,255,.2);padding-top:7px;margin-top:3px}' +
+    '.pfirma{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:35px}' +
+    '.pfl{border-top:1px solid #333;padding-top:5px;text-align:center;font-size:.75rem;color:#555}' +
+    'img{max-width:48%;border-radius:7px;margin:3px;max-height:200px;object-fit:cover}' +
+    '@media print{body{margin:10px}}' +
+    '</style></head><body>');
+  printWin.document.write(document.getElementById('print-area').innerHTML);
+  printWin.document.write('</body></html>');
+  printWin.document.close();
+  printWin.focus();
+  setTimeout(() => { printWin.print(); }, 600);
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────────
